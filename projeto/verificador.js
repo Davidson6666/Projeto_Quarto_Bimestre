@@ -104,11 +104,12 @@ async function menu() {
         mostraMenu();
         return;
       } else if (num >= 1 && num <= tabelas.length) {
-        
+        const negrito = '\x1b[1m';
+        const reset = '\x1b[0m';
         const tabelaEscolhida = tabelas[num - 1];
         const colunas = await pegaColunas(tabelaEscolhida);
         console.log(`\nColunas da tabela ${tabelaEscolhida}: ${colunas.join(", ")}`);
-        rl.question("Você esta usando a tabela" + tabelaEscolhida + "deseja verificar as depencias:", async (legal) => {
+        rl.question(`Você esta usando a tabela${negrito} ${tabelaEscolhida} ${reset} deseja verificar as depencias:` , async (legal) => {
           const opcao = legal;
           if (opcao.toLowerCase() === 'sim') {
             console.log("Iniciando verificação de dependências funcionais...");
