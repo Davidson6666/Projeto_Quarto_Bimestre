@@ -7,7 +7,7 @@ const path = "../csvs";
 // aqui é apenas o objeto da biblioteca node que se comunica com o banco
 const pool = new Pool({
   user: "postgres",
-  password: "admin@123",
+  password: "lindo",
   host: "localhost",
   port: 5432,
   database: "teste_dE_depencia_funcional",
@@ -213,6 +213,7 @@ async function menu() {
 }
 
 // função que gera todas as combinações de 1 a 3 colunas para o lado esquerdo
+// Função externa para gerar combinações de 1 a 3 colunas
 function geraCombinacoes(colunas) {
   let combinacoes = [];
   // 1 coluna
@@ -236,42 +237,55 @@ function geraCombinacoes(colunas) {
   return combinacoes;
 }
 
-// função ajustada para mostrar mensagem de dependências válidas abaixo das colunas
+// Função principal para verificar dependências funcionais
 async function verificaDependenciasComMensagem(tabela) {
-  const colunas = await pegaColunas(tabela);
-  const combinacoes = geraCombinacoes(colunas);
+  const colunasTabela = await pegaColunas(tabela);
   const client = await pool.connect();
-  let dependenciasInvalidas = [];
-  let totalTestes = 0;
+  const dependenciasValidas = [];
+
+  const chavePrimaria = colunasTabela[0]; 
+  const outrasColunas = colunasTabela.slice(1);
+
+  for (let i = 0; i < outrasColunas.length; i++) {
+    dependenciasValidas.push({ esquerda: [chavePrimaria], direita: outrasColunas[i] });
+  }
+
+  const combinacoes = geraCombinacoes(outrasColunas);
 
   for (let i = 0; i < combinacoes.length; i++) {
-    const ladoEsq = combinacoes[i];
-    for (let j = 0; j < colunas.length; j++) {
-      if (ladoEsq.includes(colunas[j])) continue;
-      const ladoDir = colunas[j];
-      const groupBy = ladoEsq.map((c) => `"${c}"`).join(", ");
-      const query = `SELECT ${groupBy}, COUNT(DISTINCT "${ladoDir}") AS cnt FROM "${tabela}" GROUP BY ${groupBy} HAVING COUNT(DISTINCT "${ladoDir}") > 1;`;
-      const res = await client.query(query);
-      totalTestes++;
-      if (res.rows.length > 0) {
-        dependenciasInvalidas.push({ esquerda: ladoEsq, direita: ladoDir });
+    const ladoEsquerdo = combinacoes[i];
+
+    for (let j = 0; j < outrasColunas.length; j++) {
+      const ladoDireito = outrasColunas[j];
+      if (ladoEsquerdo.includes(ladoDireito)) continue; 
+
+      let groupByStr = '';
+      for (let k = 0; k < ladoEsquerdo.length; k++) {
+        if (k > 0) groupByStr += ', ';
+        groupByStr += '"' + ladoEsquerdo[k] + '"';
+      }
+
+      const query =  `SELECT ${groupByStr}, COUNT(DISTINCT "${ladoDireito}")
+                      FROM "${tabela}" GROUP BY ${groupByStr}
+                      HAVING COUNT(DISTINCT "${ladoDireito}") > 1;`;
+
+      const resultadoQuery = await client.query(query);
+
+      if (resultadoQuery.rows.length === 0) {
+        dependenciasValidas.push({ esquerda: ladoEsquerdo, direita: ladoDireito });
       }
     }
   }
+
   client.release();
-  if (dependenciasInvalidas.length === 0) {
-    console.log(`Dependências funcionais válidas para a tabela '${tabela}'.\n`);
-  } else {
-    console.log(
-      `\nDependências funcionais NÃO válidas para a tabela '${tabela}':`
-    );
-    for (let dep of dependenciasInvalidas) {
-      console.log(`${dep.esquerda.join(", ")} -> ${dep.direita}`);
-    }
-    console.log(
-      `Total: ${dependenciasInvalidas.length} dependências não válidas\n`
-    );
+
+  for (let i = 0; i < dependenciasValidas.length; i++) {
+    const dep = dependenciasValidas[i];
+    console.log(dep.esquerda.join(", ") + " -> " + dep.direita);
   }
+
+  console.log("Total: " + dependenciasValidas.length + " dependências válidas");
+
   menu();
 }
 
