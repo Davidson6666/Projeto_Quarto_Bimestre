@@ -35,7 +35,8 @@ async function pegaTabelas() {
   }
   return tabelas;
 }
-//pega todas as colunas de uma tabela específica
+
+// pega todas as colunas de uma tabela específica
 async function pegaColunas(tabela) {
   const client = await pool.connect();
   const verificarCR = await client.query(`
@@ -142,7 +143,7 @@ async function transformarCsv(nomeArquivo) {
   menu();
 }
 
-//aqui começa o menu interativo onde a pessoa escolhe o que fazer por numeros e os numeros sejam gerado intuitivamente
+// aqui começa o menu interativo onde a pessoa escolhe o que fazer
 async function menu() {
   const tabelas = await pegaTabelas();
   const client = await pool.connect();
@@ -201,7 +202,14 @@ async function menu() {
         console.log(
           `\nColunas da tabela ${tabelaEscolhida}: ${colunas.join(", ")}`
         );
+
+        // 🔹 ADIÇÃO: medição de tempo de execução
+        let inicio = Date.now();
         await verificaDependenciasComMensagem(tabelaEscolhida);
+        let fim = Date.now();
+        console.log(
+          `Tempo de execução da verificação: ${(fim - inicio) / 1000} segundos`
+        );
       } else {
         console.log("Opção inválida!");
         mostraMenu();
@@ -212,8 +220,7 @@ async function menu() {
   mostraMenu();
 }
 
-// função que gera todas as combinações de 1 a 3 colunas para o lado esquerdo
-// Função externa para gerar combinações de 1 a 3 colunas
+// Função que gera todas as combinações de 1 a 3 colunas
 function geraCombinacoes(colunas) {
   let combinacoes = [];
   // 1 coluna
@@ -237,17 +244,20 @@ function geraCombinacoes(colunas) {
   return combinacoes;
 }
 
-// Função principal para verificar dependências funcionais só tem um porem é que ele mostra dados redundantes.
+// Função principal para verificar dependências funcionais
 async function verificaDependenciasComMensagem(tabela) {
   const colunasTabela = await pegaColunas(tabela);
   const client = await pool.connect();
   const dependenciasValidas = [];
 
-  const chavePrimaria = colunasTabela[0]; 
+  const chavePrimaria = colunasTabela[0];
   const outrasColunas = colunasTabela.slice(1);
 
   for (let i = 0; i < outrasColunas.length; i++) {
-    dependenciasValidas.push({ esquerda: [chavePrimaria], direita: outrasColunas[i] });
+    dependenciasValidas.push({
+      esquerda: [chavePrimaria],
+      direita: outrasColunas[i],
+    });
   }
 
   const combinacoes = geraCombinacoes(outrasColunas);
@@ -257,22 +267,25 @@ async function verificaDependenciasComMensagem(tabela) {
 
     for (let j = 0; j < outrasColunas.length; j++) {
       const ladoDireito = outrasColunas[j];
-      if (ladoEsquerdo.includes(ladoDireito)) continue; 
+      if (ladoEsquerdo.includes(ladoDireito)) continue;
 
-      let groupByStr = '';
+      let groupByStr = "";
       for (let k = 0; k < ladoEsquerdo.length; k++) {
-        if (k > 0) groupByStr += ', ';
+        if (k > 0) groupByStr += ", ";
         groupByStr += '"' + ladoEsquerdo[k] + '"';
       }
 
-      const query =  `SELECT ${groupByStr}, COUNT(DISTINCT "${ladoDireito}")
-                      FROM "${tabela}" GROUP BY ${groupByStr}
-                      HAVING COUNT(DISTINCT "${ladoDireito}") > 1;`;
+      const query = `SELECT ${groupByStr}, COUNT(DISTINCT "${ladoDireito}")
+                     FROM "${tabela}" GROUP BY ${groupByStr}
+                     HAVING COUNT(DISTINCT "${ladoDireito}") > 1;`;
 
       const resultadoQuery = await client.query(query);
 
       if (resultadoQuery.rows.length === 0) {
-        dependenciasValidas.push({ esquerda: ladoEsquerdo, direita: ladoDireito });
+        dependenciasValidas.push({
+          esquerda: ladoEsquerdo,
+          direita: ladoDireito,
+        });
       }
     }
   }
